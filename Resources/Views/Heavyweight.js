@@ -18,12 +18,12 @@ win.add(Ti.UI.createLabel({
 	color: '#aaa',
 	textAlign: 'center',
 	text: 'This is a heavyweight view created from a file.\n'
-		+ 'You can dispatch actions from within a view by using Ti.App.fireEvent.'
+		+ 'You can dispatch actions from within a view by using Ti.UI.currentWindow.dispatch.'
 }));
 
 var dispatch = Ti.UI.createButton({bottom: 40, height: 30, title: 'Dispatch', left: 10, right: 10});
 dispatch.addEventListener('click', function() {
-	Ti.App.fireEvent('App.dispatch', {url: 'Other/fromView'});
+	win.dispatch('Other/fromView');
 });
 
 win.add(dispatch);

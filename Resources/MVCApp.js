@@ -21,6 +21,7 @@ var App = {
 		var object = Ti.UI[method](params);
 		object.android = App.android;
 		object.iphone = App.iphone;
+		object.dispatch = App.dispatch;
 		return object;
 	},
 	/**
