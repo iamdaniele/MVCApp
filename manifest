@@ -1,8 +1,8 @@
-#appname: MVCApp
-#publisher: dbernardi
-#url: http://studiomelonpie.com
-#image: appicon.png
-#appid: com.studiomelonpie.mvcapp
-#desc: undefined
-#type: mobile
-#guid: 03160e7a-a738-4c3d-891e-e5d90a8b6378
+#appname:MVCApp
+#publisher:not specified
+#url:http://studiomelonpie.com
+#image:appicon.png
+#appid:com.studiomelonpie.soco
+#desc:not specified
+#type:mobile
+#guid:03160e7a-a738-4c3d-891e-e5d90a8b6378

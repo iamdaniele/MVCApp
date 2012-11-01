@@ -28,7 +28,7 @@ var App = {
 	 *		App.view(file, params)				to load the specified file with the additional parameters
 	 */
 	view: function(name, params) {
-		params = params || null;
+		params = params || {};
 		var type = 'Window';
 		params.url = params.url || 'Views/' + name + '.js';
 		if(params._type) {
@@ -50,23 +50,27 @@ var App = {
 					App.controllers[data.url].init();						
 				}
 			} catch(e) {
-				return Ti.API.error('[MVCApp] Invalid controller: ' + data.url);
+				Ti.API.error('[MVCApp] Invalid controller: ' + data.url);
+				return null;
 			}
 		}
 		
 		if(typeof App.controllers[data.url] == 'undefined' || !App.controllers[data.url]) {
-			return Ti.API.error('[MVCApp] Invalid controller: ' + data.url.replace(/^Controllers\/(.+?)\.js$/, '$1'));
+			Ti.API.error('[MVCApp] Invalid controller: ' + data.url.replace(/^Controllers\/(.+?)\.js$/, '$1'));
+			return null;
 		}
 
 		if(typeof App.controllers[data.url][data.action] != 'function') {
-			return Ti.API.error('[MVCApp] Action ' + data.action + ' not found in controller ' + data.url.replace(/^Controllers\/(.+?)\.js$/, '$1'));
+			Ti.API.error('[MVCApp] Action ' + data.action + ' not found in controller ' + data.url.replace(/^Controllers\/(.+?)\.js$/, '$1'));
+			return null;
 		}
 
 		try {
-			App.controllers[data.url][data.action].apply(this, data.params);
+			return App.controllers[data.url][data.action].apply(this, data.params);
 		}
 		catch (e) {
-			return Ti.API.error('[MVCApp] ' + e.name + ' at ' + data.url + ' line ' + e.line + ': ' + e.message);
+			Ti.API.error('[MVCApp] ' + e.name + ' at ' + data.url + ' line ' + e.line + ': ' + e.message);
+			return null;
 		}
 	},
 	dispatch: function(/* location, param, param, ... */) {
@@ -81,7 +85,7 @@ var App = {
 			action = action[1] + 'Action';
 		}
 		
-		App.onDispatch({url: 'Controllers/' + location + '.js', action: action, params: params || []});
+		return App.onDispatch({url: 'Controllers/' + location + '.js', action: action, params: params || []});
 	},
 	init: function() {
 		App.iphone = Ti.Platform.name == 'iPhone OS';
@@ -89,7 +93,8 @@ var App = {
 
 		Ti.App.addEventListener('App.dispatch', function(e) {
 			if(!e.url) {
-				return Ti.API.error('App.dispatch: missing URL');
+				Ti.API.error('App.dispatch: missing URL');
+				return null;
 			}
 			
 			App.dispatch(e.url, e.data || null);
