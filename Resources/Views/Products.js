@@ -2,86 +2,49 @@ Ti.include('../UI.js');
 var win = Ti.UI.currentWindow;
 win.backgroundColor = '#222';
 
-var createProductsTableView = function(config) {
-	var TABLE_ROW_HEIGHT = '200dp';
-	config = config || {};
-	config.separatorColor = '#000';
-	config.minRowHeight = TABLE_ROW_HEIGHT;
-	var tableView = Ti.UI.createTableView(config);
-	
-	function createCell(item, key, crossReference) {
-		var row = Ti.UI.createTableViewRow({item: item, height: TABLE_ROW_HEIGHT, className: 'productItem'});
-		var background = Ti.UI.createImageView({image: item.images.large, width: 'auto', height: 'auto', top: '0dp', bottom: '0dp', left: '0dp', right: '0dp'});
-		var labelView = Ti.UI.createView({
-			backgroundColor: '#000', 
-			opacity: 0.8, 
-			height: '50dp', 
-			top: '150dp',
-			bottom: '0dp', zIndex: 1});
-			
-		var titleLabel = Ti.UI.createLabel({
-			text: item.title, 
-			font: {fontSize: '18dp', fontWeight: 'bold'}, 
-			color: '#fff', 
-			top: '0dp',
-			height: '26dp',
-			width: Ti.UI.FILL,
-			textAlign: Ti.UI.TEXT_ALIGNMENT_LEFT});
-			
-		var crossReferenceLabel = Ti.UI.createLabel({
-			text: crossReference + ' ' + key, 
-			font: {fontSize: '13dp'}, 
-			color: '#fff',
-			top: '30dp',
-			height: '20dp',
-			bottom: '10dp',
-			width: Ti.UI.FILL,
-			textAlign: Ti.UI.TEXT_ALIGNMENT_LEFT});
-		
-		labelView.add(titleLabel);
-		labelView.add(crossReferenceLabel);
-		
-		row.add(background);
-		row.add(labelView);
-		return row;
-	}
-	
-	var _appendRow = tableView.appendRow;
-	
-	tableView.appendRow = function(item, key, crossReference) {
-		_appendRow.apply(tableView, [createCell(item, key, crossReference)]);
-	}
-	
-	return tableView;
-}
-
-var header = UI.createHeader({title: 'Social Store'});
+var header = UI.createHeader({title: win.title || 'Social Store'});
 win.add(header);
 
-var errorView = UI.createErrorView();
-win.add(errorView);
-
+var errorViews = {
+	me: UI.createErrorView({title: 'Oops.', message: 'Something wrong happened while I tried to fetch some recommendations for you.', viewId: 'me'}),
+	friends: UI.createErrorView({title: 'Darn!', message: 'Something wrong happened while I tried to fetch some recommendations for your friends.', viewId: 'friends'})
+}
 
 var mainView = Ti.UI.createScrollableView({
 	backgroundColor: '#000',
 	cacheSize: 2,
-	top: '60dp',
-	bottom: '0dp'
+	top: header.getTitleHeight(),
+	bottom: 0
 });
 
-Ti.App.addEventListener('App.errorFetchingProducts', function() {
-	mainView.hide();
-	errorView.show();
+Ti.App.addEventListener('products.error', function(e) {
+	productsTableView[e.suggestionsFor].setData(null);
+	productsTableView[e.suggestionsFor].hide();
+	var views = mainView.getViews();
+	if (e.suggestionsFor == 'me') {
+		views[0].hide();
+		views[0] = errorViews.me;
+		errorViews.me.show();
+		mainView.setViews(views);
+	}
+	
+	if (e.suggestionsFor == 'friends') {
+		views[1].hide();
+		views[1] = errorViews.friends;
+		errorViews.friends.show();
+		mainView.setViews(views);
+	}
+	
 });
 
-Ti.App.addEventListener('App.errorReloadButton', function() {
-	errorView.hide();
-	mainView.show();
+Ti.App.addEventListener('errorView.reload', function(e) {
+	errorViews[e.viewId].hide();
+	productsTableView[e.viewId].show();
 });
 
 var productsTableView = {
-	me: createProductsTableView({backgroundColor: '#000'}),
-	friends: createProductsTableView({backgroundColor: '#000'})
+	me: UI.createProductsTableView({backgroundColor: '#000', viewId: 'me'}),
+	friends: UI.createProductsTableView({backgroundColor: '#000', viewId: 'friends'})
 };
 
 mainView.addView(productsTableView.me);
@@ -89,39 +52,41 @@ mainView.addView(productsTableView.friends);
 
 win.add(mainView);
 
-productsTableView.me.addEventListener('click', function(e) {
-	win.dispatch('Main/item', e.rowData.item);
+header.addEventListener('header.back', function() {
+	header.backButton(false);
+	Ti.App.fireEvent('itemWindow.close');
 });
 
-productsTableView.friends.addEventListener('click', function(e) {
+var itemClickListener = function(e) {
+	header.backButton(true);
 	win.dispatch('Main/item', e.rowData.item);
-});
+}
+
+productsTableView.me.addEventListener('click', itemClickListener);
+productsTableView.friends.addEventListener('click', itemClickListener);
+
+var PAGE_SIZE = 5;
+var since = {me: 0, friends: 0};
+
+var updateOnScroll = function(e) {
+	Ti.API.info('end scroll, requesting ' + since[e.source.viewId]);
+	e.source.setUpdating(true);
+	win.dispatch('Main/getSuggestions', since[e.source.viewId], e.source.viewId);
+}
+
+productsTableView.me.addEventListener('tableEnd', updateOnScroll);
 
 Ti.App.addEventListener('products.received', function(e) {
 	if (e.data) {
-		productsTableView[e.suggestionsFor].setData(null);
+		var count = 0;
 		for (var i in e.data) {
-			productsTableView[e.suggestionsFor].appendRow(e.data[i], i, e.crossReference);
+			count++;
+			productsTableView[e.suggestionsFor].appendRow(productsTableView[e.suggestionsFor].createCell(e.data[i], i, e.crossReference));
+		}
+		since[e.suggestionsFor] += PAGE_SIZE;
+		productsTableView[e.suggestionsFor].setUpdating(false);
+		if (count < PAGE_SIZE) {
+			productsTableView[e.suggestionsFor].removeEventListener('scroll', updateOnScroll);
 		}
 	}
 });
-
-Ti.App.addEventListener('facebook.userchanged', function(e) {
-	var user = Ti.App.Properties.getObject('facebook.user');
-
-	var image = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, 'userpicture.jpg');
-	if (!image.exists()) {
-		image = null;
-	}
-	header.setUser(user.name, image);
-});
-
-if (Ti.App.Properties.hasProperty('facebook.user')) {
-	var user = Ti.App.Properties.getObject('facebook.user');
-		
-	var image = Ti.Filesystem.getFile(Ti.Filesystem.applicationDataDirectory, 'userpicture.jpg');
-	if (!image.exists()) {
-		image = null;
-	}
-	header.setUser(user.name, image);
-}
